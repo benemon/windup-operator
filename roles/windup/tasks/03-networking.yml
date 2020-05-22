@@ -1,0 +1,100 @@
+---
+- name: create console service
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        annotations:
+          description: The console's http port.
+          service.alpha.openshift.io/dependencies: '[{"name": "rhamt-postgresql",
+            "kind": "Service"}]'
+        labels:
+          app: rhamt-http
+          application: rhamt
+        name: rhamt
+        namespace: "{{ namespace }}"
+      spec:
+        ports:
+        - port: 8080
+          targetPort: 8080
+        selector:
+          deploymentConfig: rhamt
+
+- name: create amq service
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        annotations:
+          description: RHAMT Master AMQ port.
+        labels:
+          application: rhamt-amq
+        name: rhamt-amq
+        namespace: "{{ namespace }}"        
+      spec:
+        ports:
+        - port: 61616
+          targetPort: 61616
+        selector:
+          deploymentConfig: rhamt    
+
+- name: create database service
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: Service
+      metadata:
+        annotations:
+          description: The database server's port.
+        labels:
+          application: rhamt
+        name: rhamt-postgresql
+        namespace: "{{ namespace }}"        
+      spec:
+        ports:
+        - port: 5432
+          targetPort: 5432
+        selector:
+          deploymentConfig: rhamt-postgresql    
+
+- name: create http route
+  k8s:
+    state: present
+    definition:
+      apiVersion: route.openshift.io/v1
+      kind: Route
+      metadata:
+        annotations:
+          console.alpha.openshift.io/overview-app-route: "true"
+          description: Route for application's http service.
+        labels:
+          application: rhamt
+        name: rhamt
+        namespace: "{{ namespace }}"        
+      spec:
+        to:
+          name: rhamt
+
+- name: create https route
+  k8s:
+    state: present
+    definition:
+      apiVersion: route.openshift.io/v1
+      kind: Route
+      metadata:
+        annotations:
+          description: Route for application's https service.
+        labels:
+          application: rhamt
+        name: secure-rhamt
+        namespace: "{{ namespace }}"        
+      spec:
+        tls:
+          termination: edge
+        to:
+          name: rhamt

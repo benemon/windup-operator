@@ -1,0 +1,352 @@
+---
+- name: create database deployment
+  k8s:
+    state: present
+    definition:
+      apiVersion: apps.openshift.io/v1
+      kind: DeploymentConfig
+      metadata:
+        labels:
+          application: rhamt
+        name: rhamt-postgresql
+        namespace: "{{ namespace }}"        
+      spec:
+        replicas: 1
+        selector:
+          deploymentConfig: rhamt-postgresql
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              application: rhamt
+              deploymentConfig: rhamt-postgresql
+            name: rhamt-postgresql
+          spec:
+            containers:
+            - env:
+              - name: POSTGRESQL_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-database-secret
+                    key: username
+              - name: POSTGRESQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-database-secret
+                    key: password
+              - name: POSTGRESQL_DATABASE
+                value: "{{ database.name }}"
+              - name: POSTGRESQL_MAX_CONNECTIONS
+                value: "200"
+              - name: POSTGRESQL_MAX_PREPARED_TRANSACTIONS
+                value: "200"
+              image: postgresql
+              imagePullPolicy: Always
+              name: rhamt-postgresql
+              ports:
+              - containerPort: 5432
+                protocol: TCP
+              volumeMounts:
+              - mountPath: /var/lib/pgsql/data
+                name: rhamt-postgresql-pvol
+            terminationGracePeriodSeconds: 60
+            volumes:
+            - name: rhamt-postgresql-pvol
+              persistentVolumeClaim:
+                claimName: rhamt-postgresql-claim
+        triggers:
+        - type: ImageChange
+          imageChangeParams:
+            automatic: true
+            containerNames:
+            - rhamt-postgresql
+            from:
+              kind: ImageStreamTag
+              name: postgresql:latest
+              namespace: "{{ images.imagestream_namespace }}"     
+        - type: ConfigChange
+
+- name: create executor deployment
+  k8s:
+    state: present
+    definition:
+      apiVersion: apps.openshift.io/v1
+      kind: DeploymentConfig
+      metadata:
+        labels:
+          application: rhamt-executor
+        name: rhamt-executor
+        namespace: "{{ namespace }}"        
+      spec:
+        replicas: 1
+        selector:
+          deploymentConfig: rhamt-executor
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              application: rhamt-executor
+              deploymentConfig: rhamt-executor
+            name: rhamt-executor
+          spec:
+            containers:
+            - env:
+              - name: IS_MASTER
+                value: "false"
+              - name: MESSAGING_SERIALIZER
+                value: http.post.serializer
+              - name: MESSAGING_USER
+                value: "{{ messaging.username }}"
+              - name: MESSAGING_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-amq-password-secret
+                    key: password
+              - name: MESSAGING_HOST_VAR
+                value: rhamt_SERVICE_HOST
+              image: "docker.io/{{ images.external_namespace }}/windup-web-openshift-messaging-executor:{{ images.tag }}"
+              imagePullPolicy: Always
+              lifecycle:
+                preStop:
+                  exec:
+                    command:
+                    - /opt/rhamt-cli/bin/stop.sh
+              livenessProbe:
+                exec:
+                  command:
+                  - /bin/bash
+                  - -c
+                  - /opt/rhamt-cli/bin/livenessProbe.sh
+                failureThreshold: 3
+                initialDelaySeconds: 120
+                successThreshold: 1
+                timeoutSeconds: 10
+              name: rhamt-executor
+              ports: []
+              readinessProbe:
+                exec:
+                  command:
+                  - /bin/bash
+                  - -c
+                  - /opt/rhamt-cli/bin/livenessProbe.sh
+                failureThreshold: 3
+                initialDelaySeconds: 120
+                successThreshold: 1
+                timeoutSeconds: 10
+              resources:
+                limits:
+                  cpu: "{{ resources.cpu.executor.limit }}"
+                  memory: "{{ resources.memory.executor.limit }}"
+                requests:
+                  cpu: "{{ resources.cpu.executor.request }}"
+                  memory: "{{ resources.memory.executor.request }}"
+              volumeMounts:
+              - mountPath: /opt/eap/standalone/data
+                name: rhamt-web-executor-volume
+                readOnly: false
+            terminationGracePeriodSeconds: 75
+            volumes:
+            - emptyDir: {}
+              name: rhamt-web-executor-volume
+        triggers:
+        - type: ConfigChange
+
+- name: create console deployment
+  k8s:
+    state: present
+    definition:
+      apiVersion: apps.openshift.io/v1
+      kind: DeploymentConfig
+      metadata:
+        labels:
+          application: rhamt
+        name: rhamt
+        namespace: "{{ namespace }}"        
+      spec:
+        replicas: 1
+        selector:
+          deploymentConfig: rhamt
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              application: rhamt
+              deploymentConfig: rhamt
+            name: rhamt
+          spec:
+            containers:
+            - env:
+              - name: IS_MASTER
+                value: "true"
+              - name: MESSAGING_SERIALIZER
+                value: http.post.serializer
+              - name: DB_SERVICE_PREFIX_MAPPING
+                value: rhamt-postgresql=DB
+              - name: DB_JNDI
+                value: "{{ database.jndi }}"
+              - name: DB_USERNAME
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-database-secret
+                    key: username
+              - name: DB_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-database-secret
+                    key: password
+              - name: DB_DATABASE
+                value: "{{ database.name }}"
+              - name: TX_DATABASE_PREFIX_MAPPING
+                value: rhamt-postgresql=DB
+              - name: OPENSHIFT_KUBE_PING_LABELS
+                value: application=rhamt
+              - name: OPENSHIFT_KUBE_PING_NAMESPACE
+                valueFrom:
+                  fieldRef:
+                    fieldPath: metadata.namespace
+              - name: HTTPS_KEYSTORE_DIR
+                value: /etc/eap-secret-volume
+              - name: MQ_CLUSTER_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-amq-admin-secret
+                    key: password
+              - name: MQ_QUEUES
+                value: ""
+              - name: MQ_TOPICS
+                value: ""
+              - name: JGROUPS_ENCRYPT_SECRET
+                value:  eap-app-secret
+              - name: JGROUPS_ENCRYPT_KEYSTORE_DIR
+                value: /etc/jgroups-encrypt-secret-volume
+              - name: JGROUPS_ENCRYPT_KEYSTORE
+                value: jgroups.jceks
+              - name: JGROUPS_ENCRYPT_NAME
+                value: ""
+              - name: JGROUPS_ENCRYPT_PASSWORD
+                value: ""
+              - name: JGROUPS_CLUSTER_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-jgroups-password-secret
+                    key: password
+              - name: AUTO_DEPLOY_EXPLODED
+                value: "false"
+              - name: DEFAULT_JOB_REPOSITORY
+                value: rhamt-postgresql
+              - name: TIMER_SERVICE_DATA_STORE
+                value: rhamt-postgresql
+              - name: SSO_URL
+                value: /auth
+              - name: SSO_SERVICE_URL
+                value: /auth
+              - name: SSO_REALM
+                value: rhamt
+              - name: SSO_USERNAME
+                value: "{{ sso.username }}"
+              - name: SSO_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-sso-password-secret
+                    key: password
+              - name: SSO_PUBLIC_KEY
+                value: "{{ sso.public_key }}"
+              - name: SSO_BEARER_ONLY
+                value: ""
+              - name: SSO_SAML_KEYSTORE_SECRET
+                value: eap7-app-secret
+              - name: SSO_SAML_KEYSTORE
+                value: keystore.jks
+              - name: SSO_SAML_KEYSTORE_DIR
+                value: /etc/sso-saml-secret-volume
+              - name: SSO_SAML_CERTIFICATE_NAME
+                value: jboss
+              - name: SSO_SAML_KEYSTORE_PASSWORD
+                value: mykeystorepass
+              - name: SSO_SECRET
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-sso-client-secret
+                    key: secret
+              - name: SSO_ENABLE_CORS
+                value: "false"
+              - name: SSO_SAML_LOGOUT_PAGE
+                value: "/"
+              - name: SSO_DISABLE_SSL_CERTIFICATE_VALIDATION
+                value: "true"
+              - name: SSO_TRUSTSTORE
+                value: ""
+              - name: SSO_TRUSTSTORE_DIR
+                value: /etc/sso-secret-volume
+              - name: SSO_TRUSTSTORE_PASSWORD
+                value: ""
+              - name: GC_MAX_METASPACE_SIZE
+                value: "512"
+              - name: MAX_POST_SIZE
+                value: "4294967296"
+              image: "docker.io/{{ images.external_namespace }}/windup-web-openshift:{{ images.tag }}"
+              imagePullPolicy: Always
+              lifecycle:
+                preStop:
+                  exec:
+                    command:
+                    - /opt/eap/bin/jboss-cli.sh
+                    - -c
+                    - :shutdown(timeout=60)
+              livenessProbe:
+                exec:
+                  command:
+                  - /bin/bash
+                  - -c
+                  - /opt/eap/bin/livenessProbe.sh
+                failureThreshold: 3
+                initialDelaySeconds: 120
+                successThreshold: 1
+                timeoutSeconds: 10
+              name: rhamt
+              ports:
+              - containerPort: 8778
+                name: jolokia
+                protocol: TCP
+              - containerPort: 8080
+                name: http
+                protocol: TCP
+              - containerPort: 8888
+                name: ping
+                protocol: TCP
+              readinessProbe:
+                exec:
+                  command:
+                  - /bin/bash
+                  - -c
+                  - /opt/eap/bin/readinessProbe.sh
+                failureThreshold: 3
+                initialDelaySeconds: 120
+                successThreshold: 1
+                timeoutSeconds: 10
+              resources:
+                limits:
+                  cpu: "{{ resources.cpu.console.limit }}"
+                  memory: "{{ resources.memory.console.limit }}"
+                requests:
+                  cpu: "{{ resources.cpu.console.request }}"
+                  memory: "{{ resources.memory.console.request }}"
+              volumeMounts:
+              - mountPath: /opt/eap/standalone/data/windup
+                name: rhamt-console-pvol
+                readOnly: false
+              - mountPath: /opt/eap/standalone/data
+                name: rhamt-console-pvol-data
+                readOnly: false
+            terminationGracePeriodSeconds: 75
+            volumes:
+            - name: rhamt-console-pvol
+              persistentVolumeClaim:
+                claimName: rhamt-console-claim
+            - emptyDir: {}
+              name: rhamt-console-pvol-data
+        triggers:
+        - type: ConfigChange    

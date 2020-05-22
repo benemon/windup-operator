@@ -1,0 +1,7 @@
+# tasks file for windup
+---
+- include: 00-namespace.yml
+- include: 01-secrets.yml
+- include: 02-storage.yml
+- include: 03-networking.yml
+- include: 04-workloads.yml

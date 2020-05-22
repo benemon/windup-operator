@@ -1,0 +1,36 @@
+---
+- name: create console persistent volume claim          
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        labels:
+          application: rhamt
+        name: rhamt-console-claim
+        namespace: "{{ namespace }}"        
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: "{{ resources.storage.console }}"
+
+- name: create database persistent volume claim
+  k8s:
+    state: present
+    definition:
+      apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        labels:
+          application: rhamt
+        name: rhamt-postgresql-claim
+        namespace: "{{ namespace }}"        
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: "{{ resources.storage.database }}"    
