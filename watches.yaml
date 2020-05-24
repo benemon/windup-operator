@@ -3,3 +3,4 @@
   group: org.jboss.windup
   kind: Windup
   role: windup
+  reconcilePeriod: 5m
