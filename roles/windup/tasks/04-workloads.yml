@@ -1,26 +1,32 @@
 ---
 - name: create database deployment
   k8s:
+    apply: yes
     state: present
+    wait: yes
+    wait_condition:
+      type: "Available"
+      status: "True"        
     definition:
-      apiVersion: apps.openshift.io/v1
-      kind: DeploymentConfig
+      apiVersion: apps/v1
+      kind: Deployment
       metadata:
         labels:
           application: rhamt
         name: rhamt-postgresql
-        namespace: "{{ namespace }}"        
+        namespace: "{{ meta.namespace }}"        
       spec:
         replicas: 1
         selector:
-          deploymentConfig: rhamt-postgresql
+          matchLabels:
+            deployment: rhamt-postgresql
         strategy:
           type: Recreate
         template:
           metadata:
             labels:
               application: rhamt
-              deploymentConfig: rhamt-postgresql
+              deployment: rhamt-postgresql
             name: rhamt-postgresql
           spec:
             containers:
@@ -41,7 +47,7 @@
                 value: "200"
               - name: POSTGRESQL_MAX_PREPARED_TRANSACTIONS
                 value: "200"
-              image: postgresql
+              image: "registry.access.redhat.com/rhscl/postgresql-10-rhel7:latest"
               imagePullPolicy: Always
               name: rhamt-postgresql
               ports:
@@ -55,126 +61,35 @@
             - name: rhamt-postgresql-pvol
               persistentVolumeClaim:
                 claimName: rhamt-postgresql-claim
-        triggers:
-        - type: ImageChange
-          imageChangeParams:
-            automatic: true
-            containerNames:
-            - rhamt-postgresql
-            from:
-              kind: ImageStreamTag
-              name: postgresql:latest
-              namespace: "{{ images.imagestream_namespace }}"     
-        - type: ConfigChange
-
-- name: create executor deployment
-  k8s:
-    state: present
-    definition:
-      apiVersion: apps.openshift.io/v1
-      kind: DeploymentConfig
-      metadata:
-        labels:
-          application: rhamt-executor
-        name: rhamt-executor
-        namespace: "{{ namespace }}"        
-      spec:
-        replicas: 1
-        selector:
-          deploymentConfig: rhamt-executor
-        strategy:
-          type: Recreate
-        template:
-          metadata:
-            labels:
-              application: rhamt-executor
-              deploymentConfig: rhamt-executor
-            name: rhamt-executor
-          spec:
-            containers:
-            - env:
-              - name: IS_MASTER
-                value: "false"
-              - name: MESSAGING_SERIALIZER
-                value: http.post.serializer
-              - name: MESSAGING_USER
-                value: "{{ messaging.username }}"
-              - name: MESSAGING_PASSWORD
-                valueFrom:
-                  secretKeyRef:
-                    name: rhamt-amq-password-secret
-                    key: password
-              - name: MESSAGING_HOST_VAR
-                value: rhamt_SERVICE_HOST
-              image: "docker.io/{{ images.external_namespace }}/windup-web-openshift-messaging-executor:{{ images.tag }}"
-              imagePullPolicy: Always
-              lifecycle:
-                preStop:
-                  exec:
-                    command:
-                    - /opt/rhamt-cli/bin/stop.sh
-              livenessProbe:
-                exec:
-                  command:
-                  - /bin/bash
-                  - -c
-                  - /opt/rhamt-cli/bin/livenessProbe.sh
-                failureThreshold: 3
-                initialDelaySeconds: 120
-                successThreshold: 1
-                timeoutSeconds: 10
-              name: rhamt-executor
-              ports: []
-              readinessProbe:
-                exec:
-                  command:
-                  - /bin/bash
-                  - -c
-                  - /opt/rhamt-cli/bin/livenessProbe.sh
-                failureThreshold: 3
-                initialDelaySeconds: 120
-                successThreshold: 1
-                timeoutSeconds: 10
-              resources:
-                limits:
-                  cpu: "{{ resources.cpu.executor.limit }}"
-                  memory: "{{ resources.memory.executor.limit }}"
-                requests:
-                  cpu: "{{ resources.cpu.executor.request }}"
-                  memory: "{{ resources.memory.executor.request }}"
-              volumeMounts:
-              - mountPath: /opt/eap/standalone/data
-                name: rhamt-web-executor-volume
-                readOnly: false
-            terminationGracePeriodSeconds: 75
-            volumes:
-            - emptyDir: {}
-              name: rhamt-web-executor-volume
-        triggers:
-        - type: ConfigChange
 
 - name: create console deployment
   k8s:
+    apply: yes
     state: present
+    wait: yes
+    wait_condition:
+      type: "Available"
+      status: "True"          
     definition:
-      apiVersion: apps.openshift.io/v1
-      kind: DeploymentConfig
+      apiVersion: apps/v1
+      kind: Deployment
       metadata:
         labels:
           application: rhamt
         name: rhamt
-        namespace: "{{ namespace }}"        
+        namespace: "{{ meta.namespace }}"        
       spec:
         replicas: 1
         selector:
-          deploymentConfig: rhamt
+          matchLabels:
+            deployment: rhamt
         strategy:
           type: Recreate
         template:
           metadata:
             labels:
               application: rhamt
-              deploymentConfig: rhamt
+              deployment: rhamt
             name: rhamt
           spec:
             containers:
@@ -212,8 +127,8 @@
               - name: MQ_CLUSTER_PASSWORD
                 valueFrom:
                   secretKeyRef:
-                    name: rhamt-amq-admin-secret
-                    key: password
+                    name: rhamt-amq-secret
+                    key: admin
               - name: MQ_QUEUES
                 value: ""
               - name: MQ_TOPICS
@@ -231,7 +146,7 @@
               - name: JGROUPS_CLUSTER_PASSWORD
                 valueFrom:
                   secretKeyRef:
-                    name: rhamt-jgroups-password-secret
+                    name: rhamt-jgroups-secret
                     key: password
               - name: AUTO_DEPLOY_EXPLODED
                 value: "false"
@@ -246,11 +161,14 @@
               - name: SSO_REALM
                 value: rhamt
               - name: SSO_USERNAME
-                value: "{{ sso.username }}"
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-sso-secret
+                    key: username
               - name: SSO_PASSWORD
                 valueFrom:
                   secretKeyRef:
-                    name: rhamt-sso-password-secret
+                    name: rhamt-sso-secret
                     key: password
               - name: SSO_PUBLIC_KEY
                 value: "{{ sso.public_key }}"
@@ -269,7 +187,7 @@
               - name: SSO_SECRET
                 valueFrom:
                   secretKeyRef:
-                    name: rhamt-sso-client-secret
+                    name: rhamt-sso-secret
                     key: secret
               - name: SSO_ENABLE_CORS
                 value: "false"
@@ -347,6 +265,97 @@
               persistentVolumeClaim:
                 claimName: rhamt-console-claim
             - emptyDir: {}
-              name: rhamt-console-pvol-data
-        triggers:
-        - type: ConfigChange    
+              name: rhamt-console-pvol-data        
+
+- name: create executor deployment
+  k8s:
+    apply: yes
+    state: present
+    wait: yes
+    wait_condition:
+      type: "Available"
+      status: "True"          
+    definition:
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        labels:
+          application: rhamt
+        name: rhamt-executor
+        namespace: "{{ meta.namespace }}"        
+      spec:
+        replicas: 1
+        selector:
+          matchLabels:        
+            deployment: rhamt-executor
+        strategy:
+          type: Recreate
+        template:
+          metadata:
+            labels:
+              application: rhamt
+              deployment: rhamt-executor
+            name: rhamt-executor
+          spec:
+            containers:
+            - env:
+              - name: IS_MASTER
+                value: "false"
+              - name: MESSAGING_SERIALIZER
+                value: http.post.serializer
+              - name: MESSAGING_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-amq-secret
+                    key: username
+              - name: MESSAGING_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: rhamt-amq-secret
+                    key: password
+              - name: MESSAGING_HOST_VAR
+                value: rhamt_SERVICE_HOST
+              image: "docker.io/{{ images.external_namespace }}/windup-web-openshift-messaging-executor:{{ images.tag }}"
+              imagePullPolicy: Always
+              lifecycle:
+                preStop:
+                  exec:
+                    command:
+                    - /opt/rhamt-cli/bin/stop.sh
+              livenessProbe:
+                exec:
+                  command:
+                  - /bin/bash
+                  - -c
+                  - /opt/rhamt-cli/bin/livenessProbe.sh
+                failureThreshold: 3
+                initialDelaySeconds: 120
+                successThreshold: 1
+                timeoutSeconds: 10
+              name: rhamt-executor
+              ports: []
+              readinessProbe:
+                exec:
+                  command:
+                  - /bin/bash
+                  - -c
+                  - /opt/rhamt-cli/bin/livenessProbe.sh
+                failureThreshold: 3
+                initialDelaySeconds: 120
+                successThreshold: 1
+                timeoutSeconds: 10
+              resources:
+                limits:
+                  cpu: "{{ resources.cpu.executor.limit }}"
+                  memory: "{{ resources.memory.executor.limit }}"
+                requests:
+                  cpu: "{{ resources.cpu.executor.request }}"
+                  memory: "{{ resources.memory.executor.request }}"
+              volumeMounts:
+              - mountPath: /opt/eap/standalone/data
+                name: rhamt-web-executor-volume
+                readOnly: false
+            terminationGracePeriodSeconds: 75
+            volumes:
+            - emptyDir: {}
+              name: rhamt-web-executor-volume

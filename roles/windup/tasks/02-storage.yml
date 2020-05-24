@@ -9,7 +9,7 @@
         labels:
           application: rhamt
         name: rhamt-console-claim
-        namespace: "{{ namespace }}"        
+        namespace: "{{ meta.namespace }}"        
       spec:
         accessModes:
         - ReadWriteOnce
@@ -27,7 +27,7 @@
         labels:
           application: rhamt
         name: rhamt-postgresql-claim
-        namespace: "{{ namespace }}"        
+        namespace: "{{ meta.namespace }}"        
       spec:
         accessModes:
         - ReadWriteOnce
