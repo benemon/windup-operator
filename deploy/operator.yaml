@@ -16,8 +16,7 @@ spec:
       serviceAccountName: windup-operator
       containers:
         - name: windup-operator
-          # Replace this with the built image name
-          image: "REPLACE_IMAGE"
+          image: "quay.io/bholmes/windup-operator:v0.1"
           imagePullPolicy: "Always"
           volumeMounts:
           - mountPath: /tmp/ansible-operator/runner

@@ -101,7 +101,7 @@
               - name: DB_SERVICE_PREFIX_MAPPING
                 value: rhamt-postgresql=DB
               - name: DB_JNDI
-                value: "{{ database.jndi }}"
+                value: "java:jboss/datasources/WindupServicesDS"
               - name: DB_USERNAME
                 valueFrom:
                   secretKeyRef:
@@ -171,7 +171,10 @@
                     name: rhamt-sso-secret
                     key: password
               - name: SSO_PUBLIC_KEY
-                value: "{{ sso.public_key }}"
+                valueFrom:
+                    secretKeyRef:
+                      name: rhamt-sso-secret
+                      key: publicKey
               - name: SSO_BEARER_ONLY
                 value: ""
               - name: SSO_SAML_KEYSTORE_SECRET
