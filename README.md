@@ -3,10 +3,10 @@
 A Kubernetes Operator to deploy Windup (Red Hat Application Migration Toolkit) and its dependencies.
 
 ## Usage
-
-* Create the Windup CRD - `kubectl create -f deploy/crds/org.jboss.windup_windups_crd.yaml`
-* Deploy the Windup Operator - `kubectl create -f deploy/`
-* Edit the CR as required, then create - `kubectl create -f deploy/crds/org.jboss.windup_v1_windup_cr.yaml`
+* Create a namespace in which to deploy the Operator - `kubectl create namespace rhamt`
+* Create the Windup CRD - `kubectl create -f deploy/crds/org.jboss.windup_windups_crd.yaml -n rhamt`
+* Deploy the Windup Operator - `kubectl create -f deploy/ -n rhamt`
+* Edit the CR as required, then create - `kubectl create -f deploy/crds/org.jboss.windup_v1_windup_cr.yaml -n rhamt`
 
 ## Example Windup Custom Resource
 
