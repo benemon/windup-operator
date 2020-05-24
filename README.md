@@ -3,6 +3,7 @@
 A Kubernetes Operator to deploy Windup (Red Hat Application Migration Toolkit) and its dependencies.
 
 ## Usage
+
 * Create a namespace in which to deploy the Operator - `kubectl create namespace rhamt`
 * Create the Windup CRD - `kubectl create -f deploy/crds/org.jboss.windup_windups_crd.yaml -n rhamt`
 * Deploy the Windup Operator - `kubectl create -f deploy/ -n rhamt`
