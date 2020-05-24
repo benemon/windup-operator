@@ -67,6 +67,18 @@ rules:
   verbs:
   - get
 - apiGroups:
+  - 'route.openshift.io'
+  resources:
+  - 'routes'
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch  
+- apiGroups:
   - org.jboss.windup
   resources:
   - '*'
