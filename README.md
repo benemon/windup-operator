@@ -13,6 +13,8 @@ A Kubernetes Operator to deploy Windup (Red Hat Application Migration Toolkit) a
 
 This is a deliberately opinionated installation of Windup, using the defaults defined in the standard OpenShift Template shipped with each distribution. A user can influence the resources available to the console and the executor, as well as the database name, and the Windup image version deployed.
 
+The example Windup CR provided represents a minimal known good configuration, but you will want to edit the resources consumed by  Windup to balance your usage of Windup against the capacity of your cluster. The more CPU / Memory you can allocate to it, the faster the application assessments will run.
+
 The Windup CR looks like this:
 
 ```yaml
@@ -23,19 +25,19 @@ The Windup CR looks like this:
   spec:
     resources:
       storage:
-        console: 10Gi
-        database: 10Gi
+        console: 5Gi
+        database: 5Gi
       cpu:
         console:
-          request: 2
-          limit: 4
+          request: 500m
+          limit: 1
         executor:
-          request: 1
-          limit: 2
+          request: 500m
+          limit: 1
       memory:
         console:
-          request: 2Gi
-          limit: 4Gi
+          request: 1Gi
+          limit: 2Gi
         executor:
           request: 1Gi
           limit: 2Gi
