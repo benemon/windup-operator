@@ -5,19 +5,19 @@ metadata:
 spec:
   resources:
     storage:
-      console: 10Gi
-      database: 10Gi
+      console: 5Gi
+      database: 5Gi
     cpu:
       console:
-        request: 2
-        limit: 4
+        request: 500m
+        limit: 1
       executor: 
-        request: 1
-        limit: 2
+        request: 500m
+        limit: 1
     memory:
       console:
-        request: 2Gi
-        limit: 4Gi
+        request: 1Gi
+        limit: 2Gi
       executor: 
         request: 1Gi
         limit: 2Gi
