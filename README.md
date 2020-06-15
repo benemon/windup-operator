@@ -1,8 +1,16 @@
 # windup-operator
 
-A Kubernetes Operator to deploy Windup (Red Hat Application Migration Toolkit) and its dependencies.
+A Kubernetes Operator to deploy Red Hat Application Migration Toolkit (Windup) and its dependencies.
+* Windup repository: https://github.com/windup/ 
 
-## Usage
+## Usage in OpenShift
+
+* Create a Project in which to deploy the Operator - `oc new-project rhamt`
+* Create the Windup CRD - `oc create -f deploy/crds/org.jboss.windup_windups_crd.yaml -n rhamt`
+* Deploy the Windup Operator - `oc create -f deploy/ -n rhamt`
+* Edit the CR as required, then create - `oc create -f deploy/crds/org.jboss.windup_v1_windup_cr.yaml -n rhamt`
+
+## Usage in Vanilla Kubernetes
 
 * Create a namespace in which to deploy the Operator - `kubectl create namespace rhamt`
 * Create the Windup CRD - `kubectl create -f deploy/crds/org.jboss.windup_windups_crd.yaml -n rhamt`
